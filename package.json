@@ -41,7 +41,6 @@
     "react": "*",
     "react-dom": "^16.13.1",
     "sequelize": "^6.37.7",
-    "showdown": "^2.1.0",
     "sqlite3": "^6.0.1",
     "ws": "*"
   },
@@ -51,6 +50,7 @@
     "@types/express-ws": "*",
     "@types/node": "*",
     "chai-http": "*",
+    "showdown": "^2.1.0",
     "typescript": "^6.0.2",
     "vite": "^8.0.1",
     "vitest": "^4.1.0"
