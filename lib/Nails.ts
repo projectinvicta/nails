@@ -1,13 +1,11 @@
-
 import fs from 'node:fs';
 import path from 'node:path';
-import https, { type Server as HttpsServer } from 'node:https';
-import { type Server as HttpServer } from 'node:http';
 
 import { type Application } from 'express-ws';
-import { type InitOptions, Model, Sequelize, type ModelAttributes, type ModelStatic } from 'sequelize';
+import { Model, Sequelize } from 'sequelize';
 import expressApp from './application.js';
 import Router from './Router.js';
+import Server from './Server.js';
 
 import { type Config } from './types.js';
 import Controller from './Controller.js';
@@ -32,12 +30,24 @@ export default class Nails {
     return this.instance.application;
   }
 
+  static get server() {
+    return this.instance.server;
+  }
+
   static get httpServer() {
     return this.instance.httpServer;
   }
 
   static get httpsServer() {
     return this.instance.httpsServer;
+  }
+
+  static get lameDuckMode() {
+    return this.instance.lameDuckMode;
+  }
+
+  static set lameDuckMode(value: boolean) {
+    this.instance.lameDuckMode = value;
   }
 
   // static initModel<T extends Model>(modelClass: ModelStatic<T>, attributes: ModelAttributes, options?: InitOptions) {
@@ -52,13 +62,36 @@ export default class Nails {
   declare sequelize: Sequelize;
   declare initialized: Promise<void>;
   declare router: Router;
+  declare server: Server;
   declare Model: Model;
   declare Models: Record<string, typeof Model>;
-  declare httpServer: HttpServer;
-  declare httpsServer: HttpsServer;
 
   private modelFinalizations: (() => Promise<void>)[] = [];
   private modelMigrations: (() => Promise<void>)[] = [];
+
+  get httpServer() {
+    return this.server.httpServer;
+  }
+
+  get httpsServer() {
+    return this.server.httpsServer;
+  }
+
+  get lameDuckMode(): boolean {
+    return this.server.lameDuckMode;
+  }
+
+  set lameDuckMode(value: boolean) {
+    this.server.lameDuckMode = value;
+  }
+
+  get healthy(): boolean {
+    return this.server.healthy;
+  }
+
+  set healthy(value: boolean) {
+    this.server.healthy = value;
+  }
 
   constructor(appConfig: Config) {
     Nails.instance = this;
@@ -72,6 +105,12 @@ export default class Nails {
         this.config.db.options)
       : new Sequelize(this.config.db.address);
     this.router = new Router([]);
+    this.server = new Server(this.config, this.application, async () => {
+      if (this.sequelize) {
+        await this.sequelize.authenticate();
+      }
+      return true;
+    });
     this.initialized = this.configure();
   }
 
@@ -107,50 +146,7 @@ export default class Nails {
   async startServer() {
     await this.initialized;
     console.log("CONFIGURATION COMPLETE");
-    // TODO: Use logging middleware.
-    // Use the router middleware.
-    expressApp.use(this.router.expressRouter);
-    var host = this.config.service.HOST || 'localhost';
-    var port = this.config.service.PORT || 3000;
-
-    let startHttp = 'ENABLE_HTTP' in this.config.service && !!this.config.service.ENABLE_HTTP;
-    let startHttps = !!this.config.service.ENABLE_HTTPS;
-
-    if (!startHttp && !startHttps) {
-      console.error("Either ENABLE_HTTPS or ENABLE_HTTP must be set for nails to start");
-    }
-
-    let atLeastOneServerStarted = false;
-    return new Promise<void>((resolve, reject) => {
-      if (atLeastOneServerStarted) return resolve();
-      let serverStartedCallback = () => {
-        console.log("Started");
-        atLeastOneServerStarted = true;
-        resolve();
-      }
-
-      if (startHttp) {
-        console.log("starting nails HTTP server. listening to ", host + ':' + port);
-        if (this.httpServer) {
-          console.warn("Attempted to recreate http server");
-        } else {
-          this.httpServer = expressApp.listen(port, host, serverStartedCallback);
-          console.log("Done starting HTTP server");
-        }
-      }
-      if (startHttps) {
-        if (this.httpsServer) {
-          console.warn("Attempted to recreate HTTPS server");
-        } else {
-          console.log(`starting nails HTTPS server. Listening to ${host}:${this.config.service.SSL_PORT}`);
-          this.httpsServer = https.createServer({
-            key: this.config.service.PRIVATE_KEY,
-            cert: this.config.service.CERTIFICATE
-          }, expressApp).listen(this.config.service.SSL_PORT, serverStartedCallback);
-        }
-      }
-      // TODO: Set a startup timeout and reject the promise so it does not hang forever;
-    });
+    return this.server.start(this.router);
   }
 
   async loadModels(absolutePath: string) {

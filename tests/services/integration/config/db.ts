@@ -1,7 +1,7 @@
 import {type DbConfig} from '../../../../index.ts';
 
 const config: DbConfig = {
-  address: 'sqlite::memory:',
+  address: 'sqlite:///:memory:',
 };
 
 export default config;

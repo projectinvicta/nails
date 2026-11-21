@@ -37,6 +37,11 @@ export interface DbConfig {
     password?: string;
     options?: Options;
 }
+export interface RuntimeConfig {
+    WATCH_FILE?: string;
+    WATCH_FILE_DELAY?: number;
+    lameDuckMode?: boolean;
+}
 interface AppConfig {
     APP_ROOT: string;
     PUBLIC_ROOT: string;
@@ -57,5 +62,6 @@ export interface Config {
     routes: RoutesConfig;
     mimes: MimesConfig;
     db: DbConfig;
+    runtime?: RuntimeConfig;
 }
 export {};

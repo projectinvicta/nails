@@ -1,4 +1,4 @@
-import {type Options } from "sequelize";
+import { type Options } from "sequelize";
 import { type NextFunction, type Request, type Response } from "express";
 
 export interface ControllerDoRouteParams {
@@ -33,7 +33,7 @@ type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'ws';
 
 export type RouteDefinition = [HttpMethod, RouteMatcher, RouteOptions?];
 
-export interface RoutesConfig extends Array<RouteDefinition> {}
+export interface RoutesConfig extends Array<RouteDefinition> { }
 
 interface MimesConfig {
   [key: string]: any;
@@ -44,6 +44,15 @@ export interface DbConfig {
   username?: string;
   password?: string;
   options?: Options;
+}
+
+export interface RuntimeConfig {
+  WATCH_FILE?: string;
+  WATCH_FILE_DELAY?: number;
+  lameDuckMode?: boolean;
+  // TODO(Stanton): allow features to be rolled out to specific users/roles
+  // May want to put this in its own config file so feature resolution can be done dynamically.
+  // features?: Map<string, boolean>;
 }
 
 interface AppConfig {
@@ -71,4 +80,5 @@ export interface Config {
   routes: RoutesConfig;
   mimes: MimesConfig;
   db: DbConfig;
+  runtime?: RuntimeConfig;
 }

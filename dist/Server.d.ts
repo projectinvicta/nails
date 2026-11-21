@@ -1,0 +1,31 @@
+import { type Server as HttpsServer } from 'node:https';
+import { type Server as HttpServer } from 'node:http';
+import { type Request, type Response } from 'express';
+import { type Application } from 'express-ws';
+import type Router from './Router.js';
+import { type Config } from './types.js';
+export type HealthCheckFn = () => boolean | Promise<boolean>;
+export default class Server {
+    private static activeServerByApp;
+    config: Config;
+    application: Application;
+    httpServer?: HttpServer;
+    httpsServer?: HttpsServer;
+    healthy: boolean;
+    isInitialized: boolean;
+    private healthCheck?;
+    private initialLameDuckMode;
+    private watchedFilePath?;
+    private watchFileListener?;
+    get lameDuckMode(): boolean;
+    set lameDuckMode(value: boolean);
+    constructor(config: Config, application?: Application, healthCheck?: HealthCheckFn);
+    private registerHealthzEndpoint;
+    isHealthy(): Promise<boolean>;
+    handleHealthz(_req: Request, res: Response): Promise<void>;
+    evaluateWatchFile(watchFile?: string): void;
+    private initializeRuntimeWatchFile;
+    stopWatchingRuntimeFile(): void;
+    start(router: Router): Promise<void>;
+    stop(): Promise<void>;
+}
