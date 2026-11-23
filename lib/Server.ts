@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import https, { type Server as HttpsServer } from 'node:https';
 import { type Server as HttpServer } from 'node:http';
 
@@ -129,6 +130,17 @@ export default class Server {
     this.stopWatchingRuntimeFile();
     const watchFile = this.config.runtime?.WATCH_FILE;
     if (!watchFile) return;
+
+    const defaults = {
+      lameDuckMode: this.initialLameDuckMode,
+    };
+
+    try {
+      fs.mkdirSync(path.dirname(watchFile), { recursive: true });
+      fs.writeFileSync(watchFile, JSON.stringify(defaults, null, 2), 'utf-8');
+    } catch (error) {
+      console.error(`Failed to write watch file ${watchFile}:`, error);
+    }
 
     this.evaluateWatchFile(watchFile);
 

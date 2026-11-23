@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import https from 'node:https';
 import expressApp from './application.js';
 const DEFAULT_WATCH_FILE_DELAY = 5000;
@@ -111,6 +112,16 @@ export default class Server {
         const watchFile = this.config.runtime?.WATCH_FILE;
         if (!watchFile)
             return;
+        const defaults = {
+            lameDuckMode: this.initialLameDuckMode,
+        };
+        try {
+            fs.mkdirSync(path.dirname(watchFile), { recursive: true });
+            fs.writeFileSync(watchFile, JSON.stringify(defaults, null, 2), 'utf-8');
+        }
+        catch (error) {
+            console.error(`Failed to write watch file ${watchFile}:`, error);
+        }
         this.evaluateWatchFile(watchFile);
         const delay = this.config.runtime?.WATCH_FILE_DELAY ?? DEFAULT_WATCH_FILE_DELAY;
         const listener = () => {

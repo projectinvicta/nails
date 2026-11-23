@@ -116,19 +116,39 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
     expect(res.body).toEqual({ status: 'lame_duck', lameDuckMode: true });
   });
 
-  it('evaluates WATCH_FILE as JSON on startServer() and extracts lameDuckMode', async () => {
+  it('rewrites an existing WATCH_FILE with defaults on startServer()', async () => {
     const { tmpRoot, config } = createBaseConfig({}, nextPort++);
     cleanupDirs.push(tmpRoot);
 
     const watchFile = path.join(tmpRoot, 'runtime.json');
-    fs.writeFileSync(watchFile, JSON.stringify({ lameDuckMode: true }));
+    fs.writeFileSync(watchFile, JSON.stringify({ lameDuckMode: true, staleKey: 'old' }));
     config.runtime = { WATCH_FILE: watchFile, WATCH_FILE_DELAY: 50 };
 
     activeNails = new Nails(config);
     await activeNails.startServer();
 
+    expect(JSON.parse(fs.readFileSync(watchFile, 'utf-8'))).toEqual({ lameDuckMode: false });
+    expect(activeNails.lameDuckMode).toBe(false);
+    expect(activeNails.config.runtime.lameDuckMode).toBe(false);
+
+    const res = await makeHealthzRequest(activeNails.application);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: 'ok', lameDuckMode: false });
+  });
+
+  it('rewrites WATCH_FILE with configured default lameDuckMode on startServer()', async () => {
+    const { tmpRoot, config } = createBaseConfig({}, nextPort++);
+    cleanupDirs.push(tmpRoot);
+
+    const watchFile = path.join(tmpRoot, 'runtime.json');
+    fs.writeFileSync(watchFile, JSON.stringify({ lameDuckMode: false }));
+    config.runtime = { WATCH_FILE: watchFile, WATCH_FILE_DELAY: 50, lameDuckMode: true };
+
+    activeNails = new Nails(config);
+    await activeNails.startServer();
+
+    expect(JSON.parse(fs.readFileSync(watchFile, 'utf-8'))).toEqual({ lameDuckMode: true });
     expect(activeNails.lameDuckMode).toBe(true);
-    expect(activeNails.config.runtime.lameDuckMode).toBe(true);
 
     const res = await makeHealthzRequest(activeNails.application);
     expect(res.status).toBe(503);
@@ -166,20 +186,23 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
     expect(res.status).toBe(200);
   });
 
-  it('handles missing WATCH_FILE gracefully and reacts when created and deleted', async () => {
+  it('creates WATCH_FILE with defaults if specified but missing, and reacts to updates and deletion', async () => {
     const { tmpRoot, config } = createBaseConfig({}, nextPort++);
     cleanupDirs.push(tmpRoot);
 
-    const watchFile = path.join(tmpRoot, 'does-not-exist-yet.json');
+    const watchFile = path.join(tmpRoot, 'nested', 'does-not-exist-yet.json');
     config.runtime = { WATCH_FILE: watchFile, WATCH_FILE_DELAY: 50 };
 
     activeNails = new Nails(config);
     await activeNails.startServer();
 
+    expect(fs.existsSync(watchFile)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(watchFile, 'utf-8'))).toEqual({ lameDuckMode: false });
+
     let res = await makeHealthzRequest(activeNails.application);
     expect(res.status).toBe(200);
 
-    // Create the file with lameDuckMode: true
+    // Update the created file with lameDuckMode: true
     await new Promise((r) => setTimeout(r, 100));
     fs.writeFileSync(watchFile, JSON.stringify({ lameDuckMode: true }));
 
@@ -201,7 +224,6 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
     cleanupDirs.push(tmpRoot);
 
     const watchFile = path.join(tmpRoot, 'runtime.json');
-    fs.writeFileSync(watchFile, JSON.stringify({ lameDuckMode: true }));
     config.runtime = { WATCH_FILE: watchFile, WATCH_FILE_DELAY: 50 };
 
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -209,6 +231,8 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
       activeNails = new Nails(config);
       await activeNails.startServer();
 
+      fs.writeFileSync(watchFile, JSON.stringify({ lameDuckMode: true }));
+      activeNails.server.evaluateWatchFile();
       expect(activeNails.lameDuckMode).toBe(true);
 
       fs.writeFileSync(watchFile, '{ invalid json');
