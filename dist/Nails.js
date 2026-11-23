@@ -35,12 +35,6 @@ export default class Nails {
     static set lameDuckMode(value) {
         this.instance.lameDuckMode = value;
     }
-    static get healthy() {
-        return this.instance.healthy;
-    }
-    static set healthy(value) {
-        this.instance.healthy = value;
-    }
     modelFinalizations = [];
     modelMigrations = [];
     get httpServer() {
@@ -78,15 +72,6 @@ export default class Nails {
             return true;
         });
         this.initialized = this.configure();
-    }
-    async isHealthy() {
-        return this.server.isHealthy();
-    }
-    evaluateWatchFile(watchFile) {
-        this.server.evaluateWatchFile(watchFile);
-    }
-    stopWatchingRuntimeFile() {
-        this.server.stopWatchingRuntimeFile();
     }
     async configure() {
         expressApp.set('nails_config', { config: this.config });

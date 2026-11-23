@@ -1,4 +1,4 @@
-import { chai, describe, it, expect, beforeAll } from 'vitest';
+import { chai, describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {default as chaiHttp, request} from 'chai-http';
 import WebSocket from 'ws';
 import Owner from "./services/integration/server/models/owner.js";
@@ -25,6 +25,10 @@ describe("Integration: Sequelize", () => {
       console.log(e);
     }
     express_app = nails.application;
+  });
+
+  afterAll(async () => {
+    await nails?.server?.stop();
   });
 
   it("Can directly access models", async () => {

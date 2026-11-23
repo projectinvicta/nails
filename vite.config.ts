@@ -12,6 +12,7 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    fileParallelism: false,
     // environment: 'jsdom',
     // setupFiles: './spec/setupTests.js',
   },

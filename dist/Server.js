@@ -31,7 +31,6 @@ export default class Server {
         this.initialLameDuckMode = Boolean(this.config.runtime.lameDuckMode);
         this.application = application;
         this.healthCheck = healthCheck;
-        this.registerHealthzEndpoint();
     }
     registerHealthzEndpoint() {
         const alreadyRegistered = Server.activeServerByApp.has(this.application);
@@ -129,6 +128,7 @@ export default class Server {
         }
     }
     async start(router) {
+        this.registerHealthzEndpoint();
         this.initializeRuntimeWatchFile();
         // TODO: Use logging middleware.
         // Use the router middleware.

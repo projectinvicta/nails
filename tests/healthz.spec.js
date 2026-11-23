@@ -81,10 +81,7 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
 
   afterEach(async () => {
     if (activeNails) {
-      activeNails.stopWatchingRuntimeFile();
-      if (activeNails.httpServer) {
-        await new Promise((resolve) => activeNails.httpServer.close(resolve));
-      }
+      await activeNails.server.stop();
       if (activeNails.sequelize) {
         await activeNails.sequelize.close();
       }
@@ -215,7 +212,7 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
       expect(activeNails.lameDuckMode).toBe(true);
 
       fs.writeFileSync(watchFile, '{ invalid json');
-      activeNails.evaluateWatchFile();
+      activeNails.server.evaluateWatchFile();
 
       expect(activeNails.lameDuckMode).toBe(true);
       const res = await makeHealthzRequest(activeNails.application);
@@ -283,6 +280,7 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
 
     try {
       activeNails = new Nails(config);
+      await activeNails.server.start(activeNails.router);
 
       // While configure() is blocked on gate, /healthz must return 503
       const earlyRes = await makeHealthzRequest(activeNails.application);

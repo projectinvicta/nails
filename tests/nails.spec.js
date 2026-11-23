@@ -1,5 +1,5 @@
 // TODO test all initialization here
-import { describe, beforeAll, it, test, expect, vi } from 'vitest';
+import { describe, beforeAll, afterAll, it, test, expect, vi } from 'vitest';
 import Dog from './services/integration/server/models/dog.js';
 import Owner from './services/integration/server/models/owner.js';
 
@@ -7,6 +7,10 @@ let nails;
 
 beforeAll(async () => {
     nails = (await import('./services/integration/server.js')).default;
+});
+
+afterAll(async () => {
+    await nails?.server?.stop();
 });
 
 test("finalize is called during model initialization", async () => {

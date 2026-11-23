@@ -134,6 +134,7 @@ export default class Nails {
     Controller.setRouter(this.router);
     await this.initializeControllers();
     this.router.addRoutes(this.config.routes);
+    this.server.isInitialized = true;
   }
 
   async initializeModels() {

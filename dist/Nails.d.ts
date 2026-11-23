@@ -16,8 +16,6 @@ export default class Nails {
     static get httpsServer(): import("https").Server<typeof import("http").IncomingMessage, typeof import("http").ServerResponse> | undefined;
     static get lameDuckMode(): boolean;
     static set lameDuckMode(value: boolean);
-    static get healthy(): boolean;
-    static set healthy(value: boolean);
     ready: Promise<boolean>;
     config: Config;
     application: Application;
@@ -37,9 +35,6 @@ export default class Nails {
     get healthy(): boolean;
     set healthy(value: boolean);
     constructor(appConfig: Config);
-    isHealthy(): Promise<boolean>;
-    evaluateWatchFile(watchFile?: string): void;
-    stopWatchingRuntimeFile(): void;
     configure(): Promise<void>;
     initializeModels(): Promise<void>;
     startServer(): Promise<void>;
