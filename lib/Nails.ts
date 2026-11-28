@@ -131,6 +131,7 @@ export default class Nails {
     }
     await this.initializeModels();
 
+    this.router.addRoute(Server.EVALUATE_HEALTHZ_ROUTE);
     Controller.setRouter(this.router);
     await this.initializeControllers();
     this.router.addRoutes(this.config.routes);

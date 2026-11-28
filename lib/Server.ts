@@ -7,14 +7,30 @@ import { type Request, type Response } from 'express';
 import { type Application } from 'express-ws';
 import expressApp from './application.js';
 import type Router from './Router.js';
-import { type Config, type RuntimeConfig } from './types.js';
+import { type Config, type RouteDefinition, type RuntimeConfig } from './types.js';
 
 const DEFAULT_WATCH_FILE_DELAY = 5000;
 
 export type HealthCheckFn = () => boolean | Promise<boolean>;
 
+// TODO: maybe this should be a default controller. It would make wiring everything much
+// simpler and more consistent. What would the controller look like?
 export default class Server {
   private static activeServerByApp = new WeakMap<Application, Server>();
+
+  static readonly EVALUATE_HEALTHZ_ROUTE: RouteDefinition = [
+    'get',
+    '/healthz',
+    {
+      action: ({ request, response }) => {
+        const activeServer = Server.activeServerByApp.get(request.app as Application);
+        if (activeServer) {
+          return activeServer.handleHealthz(request, response);
+        }
+        response.sendStatus(503);
+      },
+    },
+  ];
 
   public config: Config;
   public application: Application;
@@ -51,22 +67,7 @@ export default class Server {
     this.initialLameDuckMode = Boolean(this.config.runtime.lameDuckMode);
     this.application = application;
     this.healthCheck = healthCheck;
-  }
-
-  private registerHealthzEndpoint(): void {
-    const alreadyRegistered = Server.activeServerByApp.has(this.application);
     Server.activeServerByApp.set(this.application, this);
-    if (!alreadyRegistered) {
-      const app = this.application;
-      app.get('/healthz', (req: Request, res: Response) => {
-        const activeServer = Server.activeServerByApp.get(app);
-        if (activeServer) {
-          void activeServer.handleHealthz(req, res);
-        } else {
-          res.status(503).json({ status: 'unhealthy', lameDuckMode: false });
-        }
-      });
-    }
   }
 
   async isHealthy(): Promise<boolean> {
@@ -87,18 +88,18 @@ export default class Server {
   async handleHealthz(_req: Request, res: Response): Promise<void> {
     try {
       if (this.lameDuckMode) {
-        res.status(503).json({ status: 'lame_duck', lameDuckMode: true });
+        res.sendStatus(503);
         return;
       }
       const healthy = await this.isHealthy();
       if (!healthy) {
-        res.status(503).json({ status: 'unhealthy', lameDuckMode: false });
+        res.sendStatus(503);
         return;
       }
-      res.status(200).json({ status: 'ok', lameDuckMode: false });
+      res.sendStatus(200);
     } catch (error) {
       console.error('Health check error:', error);
-      res.status(503).json({ status: 'unhealthy', lameDuckMode: this.lameDuckMode });
+      res.sendStatus(503);
     }
   }
 
@@ -162,7 +163,6 @@ export default class Server {
   }
 
   async start(router: Router): Promise<void> {
-    this.registerHealthzEndpoint();
     this.initializeRuntimeWatchFile();
     // TODO: Use logging middleware.
     // Use the router middleware.

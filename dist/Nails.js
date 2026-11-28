@@ -90,6 +90,7 @@ export default class Nails {
             console.error('Unable to connect to the database:', error);
         }
         await this.initializeModels();
+        this.router.addRoute(Server.EVALUATE_HEALTHZ_ROUTE);
         Controller.setRouter(this.router);
         await this.initializeControllers();
         this.router.addRoutes(this.config.routes);

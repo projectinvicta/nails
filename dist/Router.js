@@ -37,6 +37,18 @@ class NailsRouter extends EventEmitter {
         else if (consequences && consequences.public) {
             this.expressRouter.use(path_matcher, expressStatic(this.application.get('public_root')));
         }
+        else if (consequences && typeof consequences.action === 'function') {
+            const actionFn = consequences.action;
+            this.expressRouter[method](path_matcher, async (request, response, next) => {
+                try {
+                    const params = { ...request.params, ...request.query };
+                    await actionFn({ params, request, response });
+                }
+                catch (error) {
+                    next(error);
+                }
+            });
+        }
         else {
             this.expressRouter[method](path_matcher, this.get_express_route_handler(consequences));
         }

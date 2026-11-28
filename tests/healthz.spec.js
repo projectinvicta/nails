@@ -91,16 +91,26 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
     }
   });
 
-  it('returns 200 on /healthz when healthy and not in lame duck mode (even with catchall route)', async () => {
+  it('returns 200 OK (minimal plain text) on /healthz when healthy and not in lame duck mode (even with catchall route and HTML view)', async () => {
     const { tmpRoot, config } = createBaseConfig({}, nextPort++);
     cleanupDirs.push(tmpRoot);
+
+    // Add a real HomeController + EJS view to ensure /healthz never renders HTML
+    fs.mkdirSync(path.join(tmpRoot, 'views', 'home'), { recursive: true });
+    fs.writeFileSync(path.join(tmpRoot, 'views', 'home', 'index.ejs'), '<html><body>Home Page</body></html>');
+    const controllerPath = path.resolve(import.meta.dirname, '../lib/Controller.ts');
+    fs.writeFileSync(
+      path.join(tmpRoot, 'controllers', 'home_controller.js'),
+      `import Controller from ${JSON.stringify(controllerPath)};\nexport default class HomeController extends Controller { index() { return {}; } }\n`
+    );
 
     activeNails = new Nails(config);
     await activeNails.startServer();
 
     const res = await makeHealthzRequest(activeNails.application);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ status: 'ok', lameDuckMode: false });
+    expect(res.headers['content-type']).toMatch(/text\/plain/);
+    expect(res.text).toBe('OK');
   });
 
   it('returns 503 on /healthz when static runtime.lameDuckMode is true', async () => {
@@ -113,7 +123,8 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
     expect(activeNails.lameDuckMode).toBe(true);
     const res = await makeHealthzRequest(activeNails.application);
     expect(res.status).toBe(503);
-    expect(res.body).toEqual({ status: 'lame_duck', lameDuckMode: true });
+    expect(res.headers['content-type']).toMatch(/text\/plain/);
+    expect(res.text).toBe('Service Unavailable');
   });
 
   it('rewrites an existing WATCH_FILE with defaults on startServer()', async () => {
@@ -133,7 +144,7 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
 
     const res = await makeHealthzRequest(activeNails.application);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ status: 'ok', lameDuckMode: false });
+    expect(res.text).toBe('OK');
   });
 
   it('rewrites WATCH_FILE with configured default lameDuckMode on startServer()', async () => {
@@ -152,7 +163,7 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
 
     const res = await makeHealthzRequest(activeNails.application);
     expect(res.status).toBe(503);
-    expect(res.body).toEqual({ status: 'lame_duck', lameDuckMode: true });
+    expect(res.text).toBe('Service Unavailable');
   });
 
   it('dynamically updates lameDuckMode and /healthz when WATCH_FILE changes', async () => {
@@ -256,11 +267,12 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
     activeNails.healthy = false;
     const res = await makeHealthzRequest(activeNails.application);
     expect(res.status).toBe(503);
-    expect(res.body).toEqual({ status: 'unhealthy', lameDuckMode: false });
+    expect(res.text).toBe('Service Unavailable');
 
     activeNails.healthy = true;
     const res2 = await makeHealthzRequest(activeNails.application);
     expect(res2.status).toBe(200);
+    expect(res2.text).toBe('OK');
   });
 
   it('returns 503 on /healthz when database health check fails', async () => {
@@ -277,7 +289,7 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
     try {
       const res = await makeHealthzRequest(activeNails.application);
       expect(res.status).toBe(503);
-      expect(res.body).toEqual({ status: 'unhealthy', lameDuckMode: false });
+      expect(res.text).toBe('Service Unavailable');
     } finally {
       authSpy.mockRestore();
       errorSpy.mockRestore();
@@ -285,6 +297,7 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
 
     const resHealthy = await makeHealthzRequest(activeNails.application);
     expect(resHealthy.status).toBe(200);
+    expect(resHealthy.text).toBe('OK');
   });
 
   it('returns 503 on /healthz before initialization completes', async () => {
@@ -296,10 +309,10 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
       releaseInit = resolve;
     });
 
-    const originalInitModels = Nails.prototype.initializeModels;
-    const initModelsSpy = vi.spyOn(Nails.prototype, 'initializeModels').mockImplementation(async function () {
+    const originalInitControllers = Nails.prototype.initializeControllers;
+    const initControllersSpy = vi.spyOn(Nails.prototype, 'initializeControllers').mockImplementation(async function (...args) {
       await gate;
-      return originalInitModels.call(this);
+      return originalInitControllers.apply(this, args);
     });
 
     try {
@@ -309,16 +322,35 @@ describe('RuntimeConfig, WATCH_FILE, and /healthz', () => {
       // While configure() is blocked on gate, /healthz must return 503
       const earlyRes = await makeHealthzRequest(activeNails.application);
       expect(earlyRes.status).toBe(503);
-      expect(earlyRes.body).toEqual({ status: 'unhealthy', lameDuckMode: false });
+      expect(earlyRes.text).toBe('Service Unavailable');
 
       releaseInit();
       await activeNails.initialized;
 
       const readyRes = await makeHealthzRequest(activeNails.application);
       expect(readyRes.status).toBe(200);
-      expect(readyRes.body).toEqual({ status: 'ok', lameDuckMode: false });
+      expect(readyRes.text).toBe('OK');
     } finally {
-      initModelsSpy.mockRestore();
+      initControllersSpy.mockRestore();
     }
+  });
+
+  it('gives EVALUATE_HEALTHZ_ROUTE precedence over controller routes defining /healthz', async () => {
+    const { tmpRoot, config } = createBaseConfig({}, nextPort++);
+    cleanupDirs.push(tmpRoot);
+
+    const controllerPath = path.resolve(import.meta.dirname, '../lib/Controller.ts');
+    fs.writeFileSync(
+      path.join(tmpRoot, 'controllers', 'override_controller.js'),
+      `import Controller from ${JSON.stringify(controllerPath)};\nexport default class OverrideController extends Controller {\n  routes = [['get', '/healthz', { action: 'healthz' }]];\n  healthz(_params, _req, res) { res.status(200).type('text/html').send('<html>Override</html>'); }\n}\n`
+    );
+
+    activeNails = new Nails(config);
+    await activeNails.startServer();
+
+    const res = await makeHealthzRequest(activeNails.application);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/plain/);
+    expect(res.text).toBe('OK');
   });
 });

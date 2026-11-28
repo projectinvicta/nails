@@ -5,6 +5,19 @@ import expressApp from './application.js';
 const DEFAULT_WATCH_FILE_DELAY = 5000;
 export default class Server {
     static activeServerByApp = new WeakMap();
+    static EVALUATE_HEALTHZ_ROUTE = [
+        'get',
+        '/healthz',
+        {
+            action: ({ request, response }) => {
+                const activeServer = Server.activeServerByApp.get(request.app);
+                if (activeServer) {
+                    return activeServer.handleHealthz(request, response);
+                }
+                response.sendStatus(503);
+            },
+        },
+    ];
     config;
     application;
     httpServer;
@@ -32,22 +45,7 @@ export default class Server {
         this.initialLameDuckMode = Boolean(this.config.runtime.lameDuckMode);
         this.application = application;
         this.healthCheck = healthCheck;
-    }
-    registerHealthzEndpoint() {
-        const alreadyRegistered = Server.activeServerByApp.has(this.application);
         Server.activeServerByApp.set(this.application, this);
-        if (!alreadyRegistered) {
-            const app = this.application;
-            app.get('/healthz', (req, res) => {
-                const activeServer = Server.activeServerByApp.get(app);
-                if (activeServer) {
-                    void activeServer.handleHealthz(req, res);
-                }
-                else {
-                    res.status(503).json({ status: 'unhealthy', lameDuckMode: false });
-                }
-            });
-        }
     }
     async isHealthy() {
         if (!this.isInitialized || !this.healthy) {
@@ -67,19 +65,19 @@ export default class Server {
     async handleHealthz(_req, res) {
         try {
             if (this.lameDuckMode) {
-                res.status(503).json({ status: 'lame_duck', lameDuckMode: true });
+                res.sendStatus(503);
                 return;
             }
             const healthy = await this.isHealthy();
             if (!healthy) {
-                res.status(503).json({ status: 'unhealthy', lameDuckMode: false });
+                res.sendStatus(503);
                 return;
             }
-            res.status(200).json({ status: 'ok', lameDuckMode: false });
+            res.sendStatus(200);
         }
         catch (error) {
             console.error('Health check error:', error);
-            res.status(503).json({ status: 'unhealthy', lameDuckMode: this.lameDuckMode });
+            res.sendStatus(503);
         }
     }
     evaluateWatchFile(watchFile) {
@@ -139,7 +137,6 @@ export default class Server {
         }
     }
     async start(router) {
-        this.registerHealthzEndpoint();
         this.initializeRuntimeWatchFile();
         // TODO: Use logging middleware.
         // Use the router middleware.

@@ -3,10 +3,11 @@ import { type Server as HttpServer } from 'node:http';
 import { type Request, type Response } from 'express';
 import { type Application } from 'express-ws';
 import type Router from './Router.js';
-import { type Config } from './types.js';
+import { type Config, type RouteDefinition } from './types.js';
 export type HealthCheckFn = () => boolean | Promise<boolean>;
 export default class Server {
     private static activeServerByApp;
+    static readonly EVALUATE_HEALTHZ_ROUTE: RouteDefinition;
     config: Config;
     application: Application;
     httpServer?: HttpServer;
@@ -20,7 +21,6 @@ export default class Server {
     get lameDuckMode(): boolean;
     set lameDuckMode(value: boolean);
     constructor(config: Config, application?: Application, healthCheck?: HealthCheckFn);
-    private registerHealthzEndpoint;
     isHealthy(): Promise<boolean>;
     handleHealthz(_req: Request, res: Response): Promise<void>;
     evaluateWatchFile(watchFile?: string): void;
